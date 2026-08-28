@@ -1,0 +1,79 @@
+import requests
+import json
+import time
+from datetime import datetime
+
+# ========== DETAILS ==========
+JSON_URL = "https://long-dream-ac6b.aaa39269012.workers.dev/?url=https://storytvulimate.ixadrama.in/feedservice/v1/shows/516?page=0&size=10"
+TELEGRAM_BOT_TOKEN = "8761680491:AAF0AJ3VVnsgVKMXMVJH3FikBK_VCEd2xTg"
+TELEGRAM_CHAT_ID = "8471422703"
+CHECK_INTERVAL = 60          # 1 minutes
+SAVE_FILE = "drama_titles.json"
+# =============================
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
+    }
+    try:
+        requests.post(url, data=payload, timeout=10)
+    except Exception as e:
+        print("Telegram error:", e)
+
+def get_titles(data):
+    try:
+        content = data["data"]["content"]
+        titles = {item.get("title", "").strip() for item in content if item.get("title")}
+        return titles
+    except Exception as e:
+        print("Titles extract error:", e)
+        return set()
+
+def main():
+    try:
+        with open(SAVE_FILE, "r", encoding="utf-8") as f:
+            previous = set(json.load(f))
+    except:
+        previous = set()
+
+    print("Monitoring shuru ho gaya...")
+    print(f"Currently saved titles: {len(previous)}")
+
+    while True:
+        try:
+            res = requests.get(JSON_URL, timeout=15)
+            res.raise_for_status()
+            data = res.json()
+
+            current = get_titles(data)
+            new_ones = current - previous
+
+            if new_ones:
+                msg = "<b>🎬 Naye Short Drama Add Hue!</b>\n\n"
+                msg += f"⏰ {datetime.now().strftime('%d %b %Y, %I:%M %p')}\n"
+                msg += f"🔢 Total new: {len(new_ones)}\n\n"
+
+                for title in sorted(new_ones):
+                    msg += f"• <b>{title}</b>\n"
+
+                send_telegram(msg)
+                print(f"Notification bhej diya → {len(new_ones)} new titles")
+
+                with open(SAVE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(sorted(list(current)), f, ensure_ascii=False, indent=2)
+
+                previous = current
+            else:
+                print(f"{datetime.now().strftime('%H:%M:%S')} → Koi naya title nahi")
+
+        except Exception as e:
+            print("Error:", e)
+
+        time.sleep(CHECK_INTERVAL)
+
+if __name__ == "__main__":
+    main()
