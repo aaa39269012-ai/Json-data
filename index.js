@@ -101,3 +101,5 @@ cron.schedule('*/1 * * * *', () => {
 });
 
 checkNewDrama();
+
+sendTelegramNotification("🔔 Test Message: Aapka Bot Telegram par successfully working hai!");
