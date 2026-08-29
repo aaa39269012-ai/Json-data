@@ -5,7 +5,6 @@ const cron = require('node-cron');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Render Web Service Health Check
 app.get('/', (req, res) => {
   res.send('Telegram Drama Bot is Active 24/7!');
 });
@@ -14,15 +13,13 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// Credentials & Target API
 const BOT_TOKEN = '8761680491:AAF0AJ3VVnsgVKMXMVJH3FikBK_VCEd2xTg';
 const CHAT_ID = '8471422703';
 const JSON_URL = 'https://long-dream-ac6b.aaa39269012.workers.dev/?url=https://storytvulimate.ixadrama.in/feedservice/v1/shows/516?page=0&size=10';
 
-// Sabhi dekhe gaye dramas ki IDs memory me store rahegi
-let knownDramaIds = new Set();
+// ID + Title track karne ke liye Set
+let knownDramaKeys = new Set();
 
-// Telegram Notification Function
 async function sendTelegramNotification(message) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
   try {
@@ -37,7 +34,6 @@ async function sendTelegramNotification(message) {
   }
 }
 
-// Main Checker Function
 async function checkNewDrama() {
   try {
     const response = await axios.get(JSON_URL, {
@@ -46,7 +42,6 @@ async function checkNewDrama() {
       }
     });
 
-    // Exact path extraction matching your JSON: data.content
     const items = response.data && response.data.data && response.data.data.content 
       ? response.data.data.content 
       : (response.data && response.data.content ? response.data.content : []);
@@ -56,48 +51,53 @@ async function checkNewDrama() {
       return;
     }
 
-    // Baseline Set (First Run - Initial IDs save karega)
-    if (knownDramaIds.size === 0) {
+    // Baseline Set (First Run - ID + Title dono save karega)
+    if (knownDramaKeys.size === 0) {
       items.forEach(item => {
-        if (item.id) knownDramaIds.add(String(item.id));
+        if (item.id && item.title) {
+          const uniqueKey = `${item.id}_${item.title.trim()}`;
+          knownDramaKeys.add(uniqueKey);
+        }
       });
-      console.log(`[${new Date().toLocaleTimeString()}] Monitoring Started. Total Initial Dramas: ${knownDramaIds.size}`);
+      console.log(`[${new Date().toLocaleTimeString()}] Monitoring Started. Initial Items Tracked: ${knownDramaKeys.size}`);
       return;
     }
 
-    // Unn sabhi dramas ko filter karein jo pehle save nahi hue hain
-    const newDramas = items.filter(item => item.id && !knownDramaIds.has(String(item.id)));
+    // New Update Filter (ID ya Title me se kuch bhi badla toh detect karega)
+    const newDramas = items.filter(item => {
+      if (!item.id || !item.title) return false;
+      const uniqueKey = `${item.id}_${item.title.trim()}`;
+      return !knownDramaKeys.has(uniqueKey);
+    });
 
-    // Agar 1 ya 1 se zyada jitne bhi naye dramas add hue hain
     if (newDramas.length > 0) {
-      let messageText = `🎬 *${newDramas.length} Naye Drama Add Hue!*\n\n`;
+      let messageText = `🎬 *${newDramas.length} Naye Update / Drama Add Hue!*\n\n`;
 
       for (const drama of newDramas) {
         const dramaTitle = drama.title || 'Naya Drama';
         const dramaId = drama.id;
+        const uniqueKey = `${dramaId}_${dramaTitle.trim()}`;
 
         messageText += `📌 *Title:* ${dramaTitle}\n🆔 *ID:* ${dramaId}\n---------------------------\n`;
         
-        // Naye drama ki ID permanent memory me save kar lein
-        knownDramaIds.add(String(dramaId));
+        // Permanent memory save
+        knownDramaKeys.add(uniqueKey);
       }
 
       messageText += `⏰ *Time:* ${new Date().toLocaleString('en-IN')}`;
       
-      // Single formatted message for all new dramas
       await sendTelegramNotification(messageText);
     } else {
-      console.log(`[${new Date().toLocaleTimeString()}] Checked: No new drama.`);
+      console.log(`[${new Date().toLocaleTimeString()}] Checked: No new updates.`);
     }
   } catch (error) {
     console.error(`[${new Date().toLocaleTimeString()}] Fetch Error:`, error.message);
   }
 }
 
-// Every 1 minute automated execution
+// Every 1 minute automated check
 cron.schedule('*/1 * * * *', () => {
   checkNewDrama();
 });
 
-// Immediately run on start
 checkNewDrama();
