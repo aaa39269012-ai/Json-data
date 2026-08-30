@@ -17,7 +17,6 @@ const BOT_TOKEN = '8761680491:AAF0AJ3VVnsgVKMXMVJH3FikBK_VCEd2xTg';
 const CHAT_ID = '8471422703';
 const JSON_URL = 'https://long-dream-ac6b.aaa39269012.workers.dev/?url=https://storytvulimate.ixadrama.in/feedservice/v1/shows/516?page=0&size=10';
 
-// ID + Title track karne ke liye Set
 let knownDramaKeys = new Set();
 
 async function sendTelegramNotification(message) {
@@ -26,7 +25,8 @@ async function sendTelegramNotification(message) {
     await axios.post(url, {
       chat_id: CHAT_ID,
       text: message,
-      parse_mode: 'Markdown'
+      parse_mode: 'Markdown',
+      disable_web_page_preview: false
     });
     console.log('✅ Telegram Notification Sent!');
   } catch (error) {
@@ -51,7 +51,7 @@ async function checkNewDrama() {
       return;
     }
 
-    // Baseline Set (First Run - ID + Title dono save karega)
+    // Baseline Set (First Run)
     if (knownDramaKeys.size === 0) {
       items.forEach(item => {
         if (item.id && item.title) {
@@ -63,7 +63,7 @@ async function checkNewDrama() {
       return;
     }
 
-    // New Update Filter (ID ya Title me se kuch bhi badla toh detect karega)
+    // New Update Filter
     const newDramas = items.filter(item => {
       if (!item.id || !item.title) return false;
       const uniqueKey = `${item.id}_${item.title.trim()}`;
@@ -76,11 +76,21 @@ async function checkNewDrama() {
       for (const drama of newDramas) {
         const dramaTitle = drama.title || 'Naya Drama';
         const dramaId = drama.id;
+        
+        // Total Episodes extract
+        const totalEpi = drama.totalEpisodes || drama.episodeCount || drama.episodes || drama.total_episodes || 'N/A';
+        
+        // Episode URL extract
+        const epiUrl = drama.episodeUrl || drama.playUrl || drama.url || drama.link || drama.videoUrl || 'N/A';
+
         const uniqueKey = `${dramaId}_${dramaTitle.trim()}`;
 
-        messageText += `📌 *Title:* ${dramaTitle}\n🆔 *ID:* ${dramaId}\n---------------------------\n`;
+        messageText += `📌 *Title:* ${dramaTitle}\n`;
+        messageText += `🆔 *ID:* ${dramaId}\n`;
+        messageText += `🔢 *Total Episodes:* ${totalEpi}\n`;
+        messageText += `🔗 *Episode Link:* ${epiUrl}\n`;
+        messageText += `---------------------------\n`;
         
-        // Permanent memory save
         knownDramaKeys.add(uniqueKey);
       }
 
